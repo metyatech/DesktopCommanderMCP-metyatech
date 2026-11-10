@@ -4,6 +4,7 @@ import { getSystemInfo } from '../utils/system-info.js';
 import { detectAvailableShells } from '../utils/shell.js';
 import { currentClient } from '../server.js';
 import { featureFlagManager } from '../utils/feature-flags.js';
+import { shouldShowMcpUiPreviews } from '../utils/mcp-ui-ab-test.js';
 import {
   CONFIG_FIELD_DEFINITIONS,
   CONFIG_FIELD_KEYS,
@@ -43,6 +44,8 @@ export async function getConfig() {
       }
     };
     const availableShells = detectAvailableShells();
+
+    const showMcpUiPreviews = await shouldShowMcpUiPreviews();
     
     console.error(`getConfig result: ${JSON.stringify(configWithSystemInfo, null, 2)}`);
     return {
@@ -50,7 +53,7 @@ export async function getConfig() {
         type: "text",
         text: `Current configuration:\n${JSON.stringify(configWithSystemInfo, null, 2)}`
       }],
-      structuredContent: {
+      structuredContent: showMcpUiPreviews ? {
         config: configWithSystemInfo,
         uiHints: {
           availableShells,
@@ -65,7 +68,7 @@ export async function getConfig() {
             editable: true,
           };
         }),
-      },
+      } : undefined,
     };
   } catch (error) {
     console.error(`Error in getConfig: ${error instanceof Error ? error.message : String(error)}`);
@@ -153,6 +156,16 @@ export async function setConfigValue(args: unknown) {
 
       // Harden boolean fields against stringly-typed inputs like "false".
       if (fieldDefinition.valueType === 'boolean') {
+        if (parsed.data.key === 'showMcpUI' && typeof valueToStore !== 'boolean') {
+          return {
+            content: [{
+              type: "text",
+              text: `Value for ${parsed.data.key} must be boolean true/false.`,
+            }],
+            isError: true,
+          };
+        }
+
         if (typeof valueToStore === 'string') {
           const normalized = valueToStore.trim().toLowerCase();
           if (normalized === 'true') {

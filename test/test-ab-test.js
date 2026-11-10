@@ -19,6 +19,7 @@ import {
   MCP_UI_EXPERIMENT_NAME,
   MCP_UI_HIDE_VARIANT,
   MCP_UI_SHOW_VARIANT,
+  resolveExplicitMcpUiChoice,
   resolveMcpUiPreviewDecision,
 } from '../dist/utils/mcp-ui-ab-test.js';
 import { runIfMain } from './helpers/run-if-main.js';
@@ -258,6 +259,19 @@ async function runTests() {
     assert.strictEqual(MCP_UI_EXPERIMENT_NAME, 'McpUiPreviews');
     assert.strictEqual(MCP_UI_SHOW_VARIANT, 'showMCPUi');
     assert.strictEqual(MCP_UI_HIDE_VARIANT, 'notShowMCPUi');
+  });
+
+  await test('MCP UI explicit Boolean choice bypasses fallback; malformed legacy values use it', async () => {
+    let fallbacks = 0;
+    const fallback = async () => { fallbacks++; return true; };
+    assert.strictEqual(await resolveExplicitMcpUiChoice(false, fallback), false);
+    assert.strictEqual(await resolveExplicitMcpUiChoice(true, fallback), true);
+    assert.strictEqual(fallbacks, 0);
+    for (const legacy of [undefined, null, 'false', 0, {}]) {
+      assert.strictEqual(await resolveExplicitMcpUiChoice(legacy, fallback), true);
+    }
+    assert.strictEqual(fallbacks, 5);
+    await assert.rejects(resolveExplicitMcpUiChoice(undefined, async () => { throw new Error('fallback failure'); }), /fallback failure/);
   });
 
   await test('MCP UI existing users without assignment are not enrolled', async () => {

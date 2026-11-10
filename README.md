@@ -84,6 +84,26 @@ Execute long-running terminal commands on your computer and manage processes thr
 
 For ChatGPT, Claude web, and other remote clients, see the [Remote device launchers](scripts/remote/README.md). They install Node.js when missing and run Desktop Commander Remote on macOS, Linux, or Windows.
 
+### Build and launch a local source checkout
+
+From the repository root, install dependencies and build the local MCP server:
+
+```sh
+npm install
+npm run build
+node dist/index.js remote
+```
+
+To hide Desktop Commander preview and configuration widgets while keeping every tool available, set `showMcpUI` to `false` in the normal configuration file (`~/.claude-server-commander/config.json`, or `%USERPROFILE%\.claude-server-commander\config.json` on Windows):
+
+```json
+{
+  "showMcpUI": false
+}
+```
+
+You can also set it with the `set_config_value` tool using key `showMcpUI` and Boolean value `false`. Restart the local MCP server for the setting to take effect. If omitted or set to a non-Boolean legacy value, the existing MCP UI A/B decision is used.
+
 ### Install in Claude Desktop
 
 Desktop Commander offers multiple installation methods for Claude Desktop.

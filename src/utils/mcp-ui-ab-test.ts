@@ -7,6 +7,15 @@ export const MCP_UI_EXPERIMENT_NAME = 'McpUiPreviews';
 export const MCP_UI_SHOW_VARIANT = 'showMCPUi';
 export const MCP_UI_HIDE_VARIANT = 'notShowMCPUi';
 
+export type ExplicitMcpUiChoice = boolean | undefined;
+
+export async function resolveExplicitMcpUiChoice(
+  raw: unknown,
+  fallback: () => Promise<boolean>,
+): Promise<boolean> {
+  return typeof raw === 'boolean' ? raw : fallback();
+}
+
 export interface McpUiPreviewDecisionDeps {
   getExistingAssignment: () => Promise<unknown>;
   isFirstRun: () => boolean;
@@ -65,13 +74,19 @@ export async function resolveMcpUiPreviewDecision(deps: McpUiPreviewDecisionDeps
   }
 }
 
-export async function shouldShowMcpUiPreviews(): Promise<boolean> {
-  return resolveMcpUiPreviewDecision({
-    getExistingAssignment: () => configManager.getValue(`abTest_${MCP_UI_EXPERIMENT_NAME}`),
-    isFirstRun: () => configManager.isFirstRun(),
-    wasLoadedFromCache: () => featureFlagManager.wasLoadedFromCache(),
-    waitForFreshFlags: () => featureFlagManager.waitForFreshFlags(),
-    getABTestVariant,
-    capture,
-  });
+let mcpUiPreviewDecision: Promise<boolean> | undefined;
+
+export function shouldShowMcpUiPreviews(): Promise<boolean> {
+  mcpUiPreviewDecision ??= (async () => {
+    const explicitChoice = await configManager.getValue('showMcpUI');
+    return resolveExplicitMcpUiChoice(explicitChoice, () => resolveMcpUiPreviewDecision({
+      getExistingAssignment: () => configManager.getValue(`abTest_${MCP_UI_EXPERIMENT_NAME}`),
+      isFirstRun: () => configManager.isFirstRun(),
+      wasLoadedFromCache: () => featureFlagManager.wasLoadedFromCache(),
+      waitForFreshFlags: () => featureFlagManager.waitForFreshFlags(),
+      getABTestVariant,
+      capture,
+    }));
+  })();
+  return mcpUiPreviewDecision;
 }

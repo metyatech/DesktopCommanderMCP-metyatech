@@ -118,12 +118,15 @@ export const server = new Server(
 // Add handler for resources/list method
 server.setRequestHandler(ListResourcesRequestSchema, async () => {
     return {
-        resources: listUiResources(),
+        resources: await shouldShowMcpUiPreviews() ? listUiResources() : [],
     };
 });
 
 server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
     const { uri } = request.params;
+    if (!await shouldShowMcpUiPreviews() && (uri === FILE_PREVIEW_RESOURCE_URI || uri === CONFIG_EDITOR_RESOURCE_URI)) {
+        throw new Error(`Unknown resource URI: ${uri}`);
+    }
     const response = await readUiResource(uri);
     if (response) {
         return response;
