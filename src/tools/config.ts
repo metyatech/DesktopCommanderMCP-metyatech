@@ -4,7 +4,7 @@ import { getSystemInfo } from '../utils/system-info.js';
 import { detectAvailableShells } from '../utils/shell.js';
 import { currentClient } from '../server.js';
 import { featureFlagManager } from '../utils/feature-flags.js';
-import { shouldShowMcpUiPreviews } from '../utils/mcp-ui-ab-test.js';
+import { shouldShowMcpUiPreviews } from '../utils/mcp-ui-previews.js';
 import {
   CONFIG_FIELD_DEFINITIONS,
   CONFIG_FIELD_KEYS,
@@ -36,6 +36,7 @@ export async function getConfig() {
     
     const configWithSystemInfo = {
       ...config,
+      showMcpUI: config.showMcpUI === true,
       currentClient,
       featureFlags: featureFlagManager.getAll(),
       systemInfo: {

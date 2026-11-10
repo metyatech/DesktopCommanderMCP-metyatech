@@ -5,6 +5,10 @@ import { fileURLToPath } from 'node:url';
 import { createTestEnv } from './helpers/test-env.js';
 import { startServerLikeRemote } from './helpers/mcp-server.js';
 import { runIfMain } from './helpers/run-if-main.js';
+import {
+  createMemoizedMcpUiPreviewDecision,
+  resolveMcpUiPreviewDecision,
+} from '../dist/utils/mcp-ui-previews.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const UI_TOOLS = ['get_config', 'read_file', 'write_file', 'list_directory', 'edit_block'];
@@ -45,11 +49,52 @@ async function run() {
   let disabled;
   let unset;
   try {
+    await check('new installs default to previews OFF and report an effective Boolean setting', async () => {
+      const fixture = createTestEnv();
+      try {
+        const server = await startServerLikeRemote(fixture.env);
+        try {
+          const tools = (await server.client.listTools()).tools;
+          assert.equal(tools.find((tool) => tool.name === 'get_config')._meta, undefined);
+          assert.deepStrictEqual((await server.client.listResources()).resources, []);
+          const config = await server.client.callTool({ name: 'get_config', arguments: {} });
+          assert.equal(config.structuredContent, undefined);
+          assert.match(config.content[0].text, /"showMcpUI": false/);
+          assert.equal(JSON.parse(fs.readFileSync(configPath(fixture.home), 'utf8')).showMcpUI, false);
+        } finally {
+          await server.close();
+        }
+      } finally {
+        fixture.cleanup();
+      }
+    });
+
+    await check('preview decisions fail closed for missing, malformed, and rejected setting reads', async () => {
+      for (const value of [false, undefined, null, 'true', 'false', 0, 1, {}]) {
+        assert.equal(await resolveMcpUiPreviewDecision(async () => value), false, `value ${JSON.stringify(value)} must be OFF`);
+      }
+      assert.equal(await resolveMcpUiPreviewDecision(async () => { throw new Error('config read failed'); }), false);
+
+      let reads = 0;
+      const memoized = createMemoizedMcpUiPreviewDecision(async () => {
+        reads++;
+        throw new Error('config read failed');
+      });
+      const [first, second, third] = await Promise.all([memoized(), memoized(), memoized()]);
+      assert.deepStrictEqual([first, second, third], [false, false, false]);
+      assert.strictEqual(reads, 1, 'a failed read resolves and is cached once rather than poisoning the process');
+      assert.strictEqual(memoized(), memoized(), 'all calls reuse the same resolved decision promise');
+    });
+
     await check('explicit true and false control UI metadata and resources without changing tool schemas', async () => {
       enabled = createTestEnv();
       disabled = createTestEnv();
-      writeConfig(enabled.home, { showMcpUI: true });
-      writeConfig(disabled.home, { showMcpUI: false, allowedDirectories: [disabled.home] });
+      writeConfig(enabled.home, { showMcpUI: true, abTest_McpUiPreviews: 'notShowMCPUi' });
+      writeConfig(disabled.home, {
+        showMcpUI: false,
+        allowedDirectories: [disabled.home],
+        abTest_McpUiPreviews: 'showMCPUi',
+      });
       const trueServer = await startServerLikeRemote(enabled.env);
       const falseServer = await startServerLikeRemote(disabled.env);
       try {
@@ -57,6 +102,11 @@ async function run() {
         const falseTools = (await falseServer.client.listTools()).tools;
         assert.deepStrictEqual(falseTools.map(({ name }) => name), trueTools.map(({ name }) => name));
         assert.deepStrictEqual(stripUiMetadata(falseTools), stripUiMetadata(trueTools));
+        for (const name of ['get_config', 'set_config_value']) {
+          const tool = trueTools.find(({ name: toolName }) => toolName === name);
+          assert.match(tool.description, /showMcpUI/);
+          assert.match(tool.description, /server restart/i);
+        }
         for (const name of UI_TOOLS) {
           const trueTool = trueTools.find((tool) => tool.name === name);
           const falseTool = falseTools.find((tool) => tool.name === name);
@@ -107,7 +157,10 @@ async function run() {
     await check('a server process resolves the setting once, despite config writes and repeated tools/list calls', async () => {
       const fixture = createTestEnv();
       unset = fixture;
-      writeConfig(fixture.home, { allowedDirectories: [fixture.home] });
+      writeConfig(fixture.home, {
+        allowedDirectories: [fixture.home],
+        abTest_McpUiPreviews: 'showMCPUi',
+      });
       let server = await startServerLikeRemote(fixture.env);
       try {
         const [firstResponse, simultaneousResponse] = await Promise.all([
@@ -117,23 +170,25 @@ async function run() {
         const first = firstResponse.tools;
         assert.deepStrictEqual(simultaneousResponse.tools, first, 'simultaneous initial tools/list calls must agree');
         const firstGetConfig = first.find((tool) => tool.name === 'get_config');
-        assert(firstGetConfig._meta, 'unset preserves the existing fallback for an existing install');
+        assert.equal(firstGetConfig._meta, undefined, 'legacy A/B show assignment must not enable previews');
         const set = await server.client.callTool({ name: 'set_config_value', arguments: { key: 'showMcpUI', value: false } });
         assert.notEqual(set.isError, true, set.content?.[0]?.text);
         assert.match(set.content[0].text, /Successfully set showMcpUI to false/);
         const second = (await server.client.listTools()).tools;
         assert.deepStrictEqual(second, first, 'tools/list metadata must remain fixed until restart');
         const get = await server.client.callTool({ name: 'get_config', arguments: {} });
-        assert.equal(get.structuredContent.config.showMcpUI, false);
+        assert.equal(get.structuredContent, undefined);
+        assert.match(get.content[0].text, /"showMcpUI": false/);
         assert.match(fs.readFileSync(configPath(fixture.home), 'utf8'), /"showMcpUI": false/);
         for (const value of ['false', 0]) {
           const invalid = await server.client.callTool({ name: 'set_config_value', arguments: { key: 'showMcpUI', value } });
           assert.equal(invalid.isError, true, `value ${JSON.stringify(value)} must be rejected`);
-          assert.equal((await server.client.callTool({ name: 'get_config', arguments: {} })).structuredContent.config.showMcpUI, false);
+          const currentConfig = await server.client.callTool({ name: 'get_config', arguments: {} });
+          assert.match(currentConfig.content[0].text, /"showMcpUI": false/);
         }
         const unrelated = await server.client.callTool({ name: 'set_config_value', arguments: { key: 'notAConfigField', value: false } });
         assert.equal(unrelated.isError, true);
-        assert.equal((await server.client.callTool({ name: 'get_config', arguments: {} })).structuredContent.config.showMcpUI, false);
+        assert.match((await server.client.callTool({ name: 'get_config', arguments: {} })).content[0].text, /"showMcpUI": false/);
         await server.close();
 
         server = await startServerLikeRemote(fixture.env);

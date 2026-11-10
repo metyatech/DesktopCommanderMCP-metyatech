@@ -94,7 +94,7 @@ npm run build
 node dist/index.js remote
 ```
 
-To hide Desktop Commander preview and configuration widgets while keeping every tool available, set `showMcpUI` to `false` in the normal configuration file (`~/.claude-server-commander/config.json`, or `%USERPROFILE%\.claude-server-commander\config.json` on Windows):
+Previews and configuration widgets are off by default, and all tools remain available. To enable the widgets when you want them, set `showMcpUI` to `true`; to hide them explicitly, set it to `false` in the normal configuration file (`~/.claude-server-commander/config.json`, or `%USERPROFILE%\.claude-server-commander\config.json` on Windows):
 
 ```json
 {
@@ -102,7 +102,7 @@ To hide Desktop Commander preview and configuration widgets while keeping every 
 }
 ```
 
-You can also set it with the `set_config_value` tool using key `showMcpUI` and Boolean value `false`. Restart the local MCP server for the setting to take effect. If omitted or set to a non-Boolean legacy value, the existing MCP UI A/B decision is used.
+You can also set it with the `set_config_value` tool using key `showMcpUI` and Boolean value `false`. Restart the local MCP server for the setting to take effect. If omitted or set to a non-Boolean legacy value, previews remain off.
 
 ### Install in Claude Desktop
 
@@ -594,8 +594,8 @@ The server provides a comprehensive set of tools organized into several categori
 
 | Category | Tool | Description |
 |----------|------|-------------|
-| **Configuration** | `get_config` | Get the complete server configuration as JSON (includes blockedCommands, defaultShell, allowedDirectories, fileReadLineLimit, fileWriteLineLimit, telemetryEnabled) |
-| | `set_config_value` | Set a specific configuration value by key. Available settings: <br>• `blockedCommands`: Array of shell commands that cannot be executed<br>• `defaultShell`: Shell to use for commands (e.g., bash, zsh, powershell)<br>• `allowedDirectories`: Array of filesystem paths the server can access for file operations (⚠️ terminal commands can still access files outside these directories)<br>• `fileReadLineLimit`: Maximum lines to read at once (default: 1000)<br>• `fileWriteLineLimit`: Maximum lines to write at once (default: 50)<br>• `telemetryEnabled`: Enable/disable telemetry (boolean) |
+| **Configuration** | `get_config` | Get the complete server configuration as JSON (includes blockedCommands, defaultShell, allowedDirectories, fileReadLineLimit, fileWriteLineLimit, telemetryEnabled, showMcpUI) |
+| | `set_config_value` | Set a specific configuration value by key. Available settings: <br>• `blockedCommands`: Array of shell commands that cannot be executed<br>• `defaultShell`: Shell to use for commands (e.g., bash, zsh, powershell)<br>• `allowedDirectories`: Array of filesystem paths the server can access for file operations (⚠️ terminal commands can still access files outside these directories)<br>• `fileReadLineLimit`: Maximum lines to read at once (default: 1000)<br>• `fileWriteLineLimit`: Maximum lines to write at once (default: 50)<br>• `telemetryEnabled`: Enable/disable telemetry (boolean)<br>• `showMcpUI`: Show or hide preview/configuration widgets (Boolean; off by default; requires server restart) |
 | **Terminal** | `start_process` | Start programs with smart detection of when they're ready for input |
 | | `interact_with_process` | Send commands to running programs and get responses |
 | | `read_process_output` | Read output from running processes |

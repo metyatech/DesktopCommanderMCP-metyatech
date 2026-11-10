@@ -30,7 +30,7 @@ export const CONFIG_FIELD_DEFINITIONS = {
   },
   showMcpUI: {
     label: 'MCP UI Previews',
-    description: 'When on, Desktop Commander advertises its file preview and configuration widgets to the MCP host. When off, the tools remain available without those widgets. Restart the local MCP server after changing this setting.',
+    description: 'Off by default. When on, Desktop Commander advertises its file preview and configuration widgets to the MCP host. When off, all tools remain available without those widgets. Restart the local MCP server after changing this setting.',
     valueType: 'boolean',
   },
   fileReadLineLimit: {
