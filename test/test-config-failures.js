@@ -46,6 +46,14 @@ function canRead(file) {
   }
 }
 
+function parseTextConfig(result) {
+  assert.strictEqual(result.structuredContent, undefined, 'previews OFF must omit structured editor content');
+  const prefix = 'Current configuration:\n';
+  const text = result.content.find((item) => item.type === 'text')?.text;
+  assert(text?.startsWith(prefix), 'get_config should return its normal text configuration');
+  return JSON.parse(text.slice(prefix.length));
+}
+
 /** A temporary home whose config.json holds `content` */
 function homeWithConfig(content) {
   const testEnv = createTestEnv();
@@ -188,9 +196,11 @@ async function run() {
         if (canRead(home.configPath)) return skip('test-config-failures.js: this user reads config.json whatever its permissions');
         const server = await startServerLikeRemote(home.env);
         try {
-          const { config } = (await server.client.callTool({ name: 'get_config', arguments: {} })).structuredContent;
+          const result = await server.client.callTool({ name: 'get_config', arguments: {} });
+          const config = parseTextConfig(result);
           assert.deepStrictEqual([config.welcomeOnboardingEligible, config.pendingWelcomeOnboarding], [false, false],
             'an existing install must start with the welcome page off');
+          assert.strictEqual(config.showMcpUI, false, 'an unreadable legacy config must fail closed with previews off');
         } finally {
           await server.close();
         }

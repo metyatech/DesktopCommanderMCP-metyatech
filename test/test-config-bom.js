@@ -15,6 +15,14 @@ import { createTestEnv } from './helpers/test-env.js';
 import { startServerLikeRemote } from './helpers/mcp-server.js';
 import { runIfMain } from './helpers/run-if-main.js';
 
+function parseTextConfig(result) {
+  assert.strictEqual(result.structuredContent, undefined, 'previews OFF must omit structured editor content');
+  const prefix = 'Current configuration:\n';
+  const text = result.content.find((item) => item.type === 'text')?.text;
+  assert(text?.startsWith(prefix), 'get_config should return its normal text configuration');
+  return JSON.parse(text.slice(prefix.length));
+}
+
 async function run() {
   const { env, home, cleanup } = createTestEnv();
   const configDir = path.join(home, '.claude-server-commander');
@@ -55,10 +63,11 @@ async function run() {
     await check("the user's own settings from the BOM file are in effect", async () => {
       assert(server, 'the server did not start');
       const result = await server.client.callTool({ name: 'get_config', arguments: {} });
-      const config = result.structuredContent?.config ?? {};
+      const config = parseTextConfig(result);
       for (const key of ['blockedCommands', 'allowedDirectories', 'telemetryEnabled', 'clientId']) {
         assert.deepStrictEqual(config[key], saved[key], `with config.json saved as UTF-8 with BOM, ${key} is ${JSON.stringify(config[key])} instead of the user's ${JSON.stringify(saved[key])}`);
       }
+      assert.strictEqual(config.showMcpUI, false, 'a legacy BOM config without showMcpUI must keep previews off');
     });
 
     await check('the BOM file is not treated as damaged, and the next write keeps its settings', async () => {
