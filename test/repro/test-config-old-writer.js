@@ -18,6 +18,7 @@
 // Exit code: 1 if any start failed, ran without the config it was given,
 // replaced config.json as damaged (a config.json.corrupt.* copy appears), or
 // logged "Failed to reload config".
+import assert from 'node:assert/strict';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
@@ -81,7 +82,11 @@ async function runRepro() {
     try {
       await client.connect(transport, { timeout: 30_000 });
       await sleep(STAY_UP_MS);
-      const { config: inEffect } = (await client.callTool({ name: 'get_config', arguments: {} })).structuredContent;
+      const result = await client.callTool({ name: 'get_config', arguments: {} });
+      const prefix = 'Current configuration:\n';
+      const text = result.content?.find((item) => item.type === 'text')?.text;
+      assert(text?.startsWith(prefix), 'get_config should return its normal text configuration');
+      const inEffect = JSON.parse(text.slice(prefix.length));
       if (inEffect.writtenBy !== 'older-version') error = `runs without the config it was given (writtenBy: ${inEffect.writtenBy})`;
     } catch (e) {
       error = e?.message ?? String(e);

@@ -19,6 +19,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { exitProcess } from '../../dist/utils/exit-process.js';
+import { CONFIG_FIELD_KEYS } from '../../dist/config-field-definitions.js';
 import { connectToServer } from '../helpers/mcp-client.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -42,11 +43,11 @@ async function setup(client) {
   await fs.writeFile(TEST_FILE, lines.join('\n'));
 
   const original = await callTool(client, 'get_config', {});
-  const entries = original.structuredContent?.entries;
-  assert.ok(Array.isArray(entries), 'get_config should return structured entries');
-  const originalConfig = Object.fromEntries(
-    entries.filter((e) => e && e.editable === true).map((e) => [e.key, e.value])
-  );
+  const prefix = 'Current configuration:\n';
+  const configText = original.content.find((item) => item.type === 'text')?.text;
+  assert.ok(configText?.startsWith(prefix), 'get_config should return its normal text configuration');
+  const config = JSON.parse(configText.slice(prefix.length));
+  const originalConfig = Object.fromEntries(CONFIG_FIELD_KEYS.map((key) => [key, config[key]]));
 
   const set = await callTool(client, 'set_config_value', {
     key: 'allowedDirectories', value: [TEST_DIR], origin: 'llm',

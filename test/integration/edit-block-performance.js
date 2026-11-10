@@ -13,6 +13,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { performance } from 'perf_hooks';
 import { exitProcess } from '../../dist/utils/exit-process.js';
+import { CONFIG_FIELD_KEYS } from '../../dist/config-field-definitions.js';
 
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { callToolOnceLoaded } from '../helpers/heavy-packages.js';
@@ -801,13 +802,11 @@ async function setup(client) {
 
   const originalConfigResult = await callTool(client, 'get_config', {});
   assertToolSuccess(originalConfigResult, 'get_config');
-  const originalConfigEntries = originalConfigResult.structuredContent?.entries;
-  assert.ok(Array.isArray(originalConfigEntries), 'get_config should return structured config entries');
-  const originalConfig = Object.fromEntries(
-    originalConfigEntries
-      .filter((entry) => entry && entry.editable === true)
-      .map((entry) => [entry.key, entry.value])
-  );
+  const prefix = 'Current configuration:\n';
+  const configText = originalConfigResult.content.find((item) => item.type === 'text')?.text;
+  assert.ok(configText?.startsWith(prefix), 'get_config should return its normal text configuration');
+  const config = JSON.parse(configText.slice(prefix.length));
+  const originalConfig = Object.fromEntries(CONFIG_FIELD_KEYS.map((key) => [key, config[key]]));
 
   for (const [key, value] of [
     ['allowedDirectories', [TEST_DIR]],

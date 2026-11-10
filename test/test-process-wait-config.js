@@ -56,8 +56,12 @@ async function testNotConfigurable() {
   assert.strictEqual(response.isError, true);
   assert.match(response.content[0].text, /not configurable/);
   assert.strictEqual(await configManager.getValue('maxProcessWaitMs'), undefined);
-  const keys = (await getConfig()).structuredContent.entries.map((entry) => entry.key);
-  assert(!keys.includes('maxProcessWaitMs'), `get_config must not list it, got: ${keys.join(', ')}`);
+  const result = await getConfig();
+  const prefix = 'Current configuration:\n';
+  const text = result.content.find((item) => item.type === 'text')?.text;
+  assert(text?.startsWith(prefix), 'get_config should return its normal text configuration');
+  const config = JSON.parse(text.slice(prefix.length));
+  assert(!Object.hasOwn(config, 'maxProcessWaitMs'), 'get_config must not include maxProcessWaitMs');
   console.log('ok: set_config_value refuses it, get_config does not list it');
 }
 
